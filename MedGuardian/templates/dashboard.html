@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Disease Outbreak Dashboard</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Leaflet.js CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #chart-container { width: 80%; margin: auto; }
+        #map { height: 400px; width: 100%; margin-top: 30px; }
+        #suggestions { margin-top: 30px; }
+        .suggestion-box { background: #f0f0f0; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h2>Disease Outbreak Dashboard</h2>
+
+    <div id="chart-container">
+        <canvas id="outbreakChart"></canvas>
+    </div>
+
+    <div id="map"></div>
+
+    <div id="suggestions">
+        <h3>Prevention Tips</h3>
+        <div id="tips-container"></div>
+    </div>
+
+    <script>
+        fetch('/dashboard-data')
+            .then(response => response.json())
+            .then(data => {
+                // Chart data
+                const diseaseLabels = data.map(d => d.disease + ' (' + d.region + ')');
+                const caseCounts = data.map(d => d.cases);
+
+                // Render chart
+                new Chart(document.getElementById('outbreakChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: diseaseLabels,
+                        datasets: [{
+                            label: 'Number of Cases',
+                            data: caseCounts,
+                            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+
+                // Render map
+                var map = L.map('map').setView([20.5937, 78.9629], 5); // Centered on India
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: 'Map data © OpenStreetMap contributors'
+                }).addTo(map);
+
+                data.forEach(entry => {
+                    L.marker([entry.lat, entry.lon])
+                        .addTo(map)
+                        .bindPopup(`<b>${entry.disease}</b><br>Region: ${entry.region}<br>Cases: ${entry.cases}`);
+                });
+
+                // Show suggestions
+                const suggestionsDiv = document.getElementById('tips-container');
+                const seen = new Set();
+                data.forEach(entry => {
+                    if (!seen.has(entry.disease)) {
+                        const box = document.createElement('div');
+                        box.className = 'suggestion-box';
+                        box.innerHTML = `<b>${entry.disease}</b>: ${entry.suggestion}`;
+                        suggestionsDiv.appendChild(box);
+                        seen.add(entry.disease);
+                    }
+                });
+            });
+    </script>
+</body>
+</html>
+<h3>📰 Live Outbreak News</h3>
+<ul id="news-list"></ul>
+
+<script>
+fetch('/live-outbreaks')
+  .then(res => res.json())
+  .then(data => {
+    const list = document.getElementById('news-list');
+    data.forEach(article => {
+      const li = document.createElement('li');
+      li.innerHTML = `<a href="${article.url}" target="_blank">${article.title}</a> (${article.source})`;
+      list.appendChild(li);
+    });
+  });
+</script>
+<hr>
+<h3>📬 Get Email Alert for Outbreaks</h3>
+
+<form id="alert-form">
+  <label for="email">Your Email:</label><br>
+  <input type="email" id="email" name="email" required><br><br>
+
+  <label for="disease">Select Disease:</label><br>
+  <select id="disease" name="disease">
+    <option>Dengue</option>
+    <option>COVID-19</option>
+    <option>Malaria</option>
+    <option>Cholera</option>
+  </select><br><br>
+
+  <label for="region">Your Region:</label><br>
+  <input type="text" id="region" name="region" required><br><br>
+
+  <button type="submit">🔔 Send Me Alert</button>
+</form>
+
+<p id="alert-status" style="color:green; margin-top:10px;"></p>
+
+<script>
+  const form = document.getElementById("alert-form");
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const data = {
+      email: document.getElementById("email").value,
+      disease: document.getElementById("disease").value,
+      region: document.getElementById("region").value
+    };
+
+    fetch("/send-alert", {
+      method: "POST",
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams(data)
+    })
+    .then(res => res.json())
+    .then(response => {
+      const status = document.getElementById("alert-status");
+      if (response.status === "sent") {
+        status.innerText = "✅ Alert sent successfully to your email!";
+        status.style.color = "green";
+      } else {
+        status.innerText = "❌ Failed to send alert. Try again.";
+        status.style.color = "red";
+      }
+    });
+  });
+</script>
